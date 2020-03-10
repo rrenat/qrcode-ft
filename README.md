@@ -1,7 +1,7 @@
-# qrcode-react
+# qrcode-ft
 
 A React component to generate [QRCode](http://en.wikipedia.org/wiki/QR_code) with logo.
-Inspired by [zpao/qrcode.react](https://github.com/zpao/qrcode.react), also support chinese.
+Inspired by [cssivision/qrcode-react](https://github.com/cssivision/qrcode-react).
 
 ## Installation
 
