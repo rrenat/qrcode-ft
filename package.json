@@ -1,41 +1,43 @@
 {
-  "name": "qrcode-react",
-  "version": "0.1.16",
-  "description": "React component to generate QRCode with logo",
-  "main": "dist/index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "babel lib/index.js --out-file dist/index.js --presets=es2015",
-    "build-example": "browserify -t [ babelify --presets [ react ] ] example/index.js -o example/bundle.js"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+ssh://git@github.com/cssivision/qrcode-react.git"
-  },
-  "keywords": [
-    "react",
-    "qrcode",
-    "logo"
-  ],
-  "author": "sivision.chen <cssivision@gmail.com>",
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/cssivision/qrcode-react/issues"
-  },
-  "homepage": "https://github.com/cssivision/qrcode-react#readme",
-  "peerDependencies": {
-    "react": "0.12 - 16.2"
-  },
-  "dependencies": {
-    "qr.js": "0.0.0"
-  },
-  "devDependencies": {
-    "babel-cli": "^6.26.0",
-    "babel-preset-es2015": "^6.24.1",
-    "babel-preset-react": "^6.1.18",
-    "babelify": "^7.2.0",
-    "prop-types": "^15.5.10",
-    "react": "^0.14.7",
-    "react-dom": "^0.14.3"
-  }
+    "name": "qrcode-ft",
+    "version": "0.1.0",
+    "description": "React component to generate QR code with logo",
+    "main": "dist/index.js",
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1",
+        "build": "babel lib/index.js --out-file dist/index.js --presets=es2015",
+        "build-example": "browserify -t [ babelify --presets [ react ] ] example/index.js -o example/bundle.js"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+ssh://git@github.com/rrenat/qrcode-ft.git"
+    },
+    "keywords": [
+        "react",
+        "ft",
+        "qrcode",
+        "squircle",
+        "logo"
+    ],
+    "author": "rrenat <dforcerdeveloper@gmail.com>",
+    "license": "MIT",
+    "bugs": {
+        "url": "https://github.com/rrenat/qrcode-ft/issues"
+    },
+    "homepage": "https://github.com/rrenat/qrcode-ft#readme",
+    "peerDependencies": {
+        "react": "0.12 - 16.2"
+    },
+    "dependencies": {
+        "qr.js": "0.0.0"
+    },
+    "devDependencies": {
+        "babel-cli": "^6.26.0",
+        "babel-preset-es2015": "^6.24.1",
+        "babel-preset-react": "^6.1.18",
+        "babelify": "^7.2.0",
+        "prop-types": "^15.5.10",
+        "react": "^0.14.7",
+        "react-dom": "^0.14.3"
+    }
 }

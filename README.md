@@ -31,7 +31,7 @@ prop         | type                                    | default value
 `value`      | `string`                                | `http://facebook.github.io/react/`
 `size`       | `number`                                | `128`
 `displaySize`| `number`                                | `128`
-`mode`       | `string` ("square","circle","squircle") | `square`
+`mode`       | `string` (square / circle / squircle)   | `"square"`
 `bgColor`    | `string` (CSS color)                    | `"#FFFFFF"`
 `fgColor`    | `string` (CSS color)                    | `"#000000"`
 `borderPart` | `string` (float)                        | `0.1`
