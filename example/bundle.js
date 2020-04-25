@@ -297,7 +297,7 @@ class QRCode extends React.Component {
 
 								var tileW = this.props.size * (1 - 2 * borderPart) / cells.length;
 								var tileH = this.props.size * (1 - 2 * borderPart) / cells.length;
-								var scale = (window.devicePixelRatio || 1) / getBackingStorePixelRatio(ctx);
+								var scale = 1; //(window.devicePixelRatio || 1) / getBackingStorePixelRatio(ctx);
 								canvas.height = canvas.width = this.props.size * scale;
 								ctx.scale(scale, scale);
 

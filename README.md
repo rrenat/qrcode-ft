@@ -32,9 +32,9 @@ prop         | type                                    | default value
 `size`       | `number`                                | `128`
 `displaySize`| `number`                                | `128`
 `mode`       | `string` (square / circle / squircle)   | `"square"`
-`bgColor`    | `string` (CSS color)                    | `"#FFFFFF"`
-`fgColor`    | `string` (CSS color)                    | `"#000000"`
-`borderPart` | `string` (float)                        | `0.1`
+`bgColor`    | `string` (HEX color code)               | `"#FFFFFF"`
+`fgColor`    | `string` (HEX color code)               | `"#000000"`
+`borderPart` | `number` (float)                        | `0.1`
 `showCenter` | `bool`                                  | `false`
 `logo`       | `string` (URL / PATH)                   |
 `logoWidth`  | `number`                                | `size * 0.18`
