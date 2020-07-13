@@ -1,8 +1,8 @@
 {
     "name": "qrcode-ft",
-    "version": "0.1.2",
+    "version": "0.1.3",
     "description": "React component to generate QR code with logo",
-    "main": "dist/index.js",
+    "main": "lib/index.js",
     "scripts": {
         "test": "echo \"Error: no test specified\" && exit 1",
         "build": "babel lib/index.js --out-file dist/index.js --presets=es2015",
@@ -29,7 +29,6 @@
         "react": "0.12 - 16.2"
     },
     "dependencies": {
-        "browserify": "^16.5.1",
         "qr.js": "0.0.0"
     },
     "devDependencies": {

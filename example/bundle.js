@@ -200,8 +200,13 @@ class QRCode extends React.Component {
         var rectH = Math.ceil((rdx + 1) * tileH) - Math.floor(rdx * tileH);
         var rectX = Math.round(cdx * tileW) + this.props.size * borderPart;
         var rectY = Math.round(rdx * tileH) + this.props.size * borderPart;
-        var cornerRadius = 0;
-        ctx.fillStyle = cell ? this.props.fgColor : this.props.bgColor;
+
+        if (Math.abs(this.props.size * (1 - borderPart) - tileW - rectX) < 1 && Math.abs(this.props.size * (1 - borderPart) - tileH - rectY) < 1) {
+          ctx.fillStyle = this.props.bgColor;
+        } else {
+          ctx.fillStyle = cell ? this.props.fgColor : this.props.bgColor;
+        }
+
         ctx.fillRect(rectX, rectY, rectW, rectH);
       }, this);
     }, this);
