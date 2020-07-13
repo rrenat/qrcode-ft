@@ -29,8 +29,8 @@ ReactDOM.render(
 prop         | type                                    | default value
 -------------|-----------------------------------------|-----------------------------------
 `value`      | `string`                                | `http://facebook.github.io/react/`
-`size`       | `number`                                | `128`
-`displaySize`| `number`                                | `128`
+`size`       | `string`                                | `"128"`
+`displaySize`| `string`                                | `"128"`
 `mode`       | `string` (square / circle / squircle)   | `"square"`
 `bgColor`    | `string` (HEX color code)               | `"#FFFFFF"`
 `fgColor`    | `string` (HEX color code)               | `"#000000"`

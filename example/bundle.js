@@ -1,4 +1,637 @@
 (function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
+var QRCode = require('../lib/index.js');
+var React = require('react');
+var ReactDOM = require('react-dom');
+
+var App = React.createClass({
+  displayName: 'App',
+
+  getInitialState: function () {
+    return {
+      text: ''
+    };
+  },
+
+  _onChange: function (event) {
+    this.setState({ text: event.target.value });
+  },
+
+  render: function () {
+    return React.createElement(
+      'div',
+      { className: 'application' },
+      React.createElement('input', { type: 'text', className: 'qrcode-input',
+        onChange: this._onChange,
+        value: this.state.text,
+        placeholder: 'input string' }),
+      React.createElement(QRCode, { className: 'qrcode', value: this.state.text,
+        size: "1000",
+        displaySize: "360",
+        mode: 'squircle',
+        fgColor: 'black',
+        bgColor: 'white' })
+    );
+  }
+});
+
+var sty;
+
+ReactDOM.render(React.createElement(App, null), document.getElementById('demo'));
+
+},{"../lib/index.js":2,"react":179,"react-dom":23}],2:[function(require,module,exports){
+'use strict';
+
+var React = require('react');
+var PropTypes = require('prop-types');
+var ReactDOM = require('react-dom');
+var qr = require('qr.js');
+
+function getBackingStorePixelRatio(ctx) {
+  return ctx.webkitBackingStorePixelRatio || ctx.mozBackingStorePixelRatio || ctx.msBackingStorePixelRatio || ctx.oBackingStorePixelRatio || ctx.backingStorePixelRatio || 1;
+}
+
+var getDOMNode;
+if (/^0\.14/.test(React.version)) {
+  getDOMNode = function (ref) {
+    return ref;
+  };
+} else {
+  getDOMNode = function (ref) {
+    return ReactDOM.findDOMNode(ref);
+  };
+}
+
+class QRCode extends React.Component {
+  shouldComponentUpdate(nextProps) {
+    var that = this;
+    return Object.keys(QRCode.propTypes).some(function (k) {
+      return that.props[k] !== nextProps[k];
+    });
+  }
+
+  componentDidMount() {
+    this.update();
+  }
+
+  componentDidUpdate() {
+    this.update();
+  }
+
+  utf16to8(str) {
+    var out, i, len, c;
+    out = "";
+    len = str.length;
+    for (i = 0; i < len; i++) {
+      c = str.charCodeAt(i);
+      if (c >= 0x0001 && c <= 0x007F) {
+        out += str.charAt(i);
+      } else if (c > 0x07FF) {
+        out += String.fromCharCode(0xE0 | c >> 12 & 0x0F);
+        out += String.fromCharCode(0x80 | c >> 6 & 0x3F);
+        out += String.fromCharCode(0x80 | c >> 0 & 0x3F);
+      } else {
+        out += String.fromCharCode(0xC0 | c >> 6 & 0x1F);
+        out += String.fromCharCode(0x80 | c >> 0 & 0x3F);
+      }
+    }
+    return out;
+  }
+
+  update() {
+    var value = this.utf16to8(this.props.value);
+    var qrcode = qr(value);
+    var canvas = getDOMNode(this.refs.canvas);
+
+    var borderPart = this.props.borderPart || 0;
+    var iconPart = this.props.iconPart || 0.115;
+    var mode = this.props.mode !== 'square' && this.props.mode !== 'circle' && this.props.mode !== 'squircle' ? 'square' : this.props.mode;
+
+    var ctx = canvas.getContext('2d');
+    var cells = qrcode.modules;
+
+    var tileW = this.props.size * (1 - 2 * borderPart) / cells.length;
+    var tileH = this.props.size * (1 - 2 * borderPart) / cells.length;
+    var scale = (window.devicePixelRatio || 1) / getBackingStorePixelRatio(ctx);
+
+    //console.log(window.devicePixelRatio);
+    //console.log(getBackingStorePixelRatio(ctx));
+
+    canvas.height = canvas.width = this.props.size * scale;
+    ctx.scale(scale, scale);
+
+    var size = this.props.size * (1 - 2 * borderPart);
+    var fullSize = this.props.size;
+    var fgColor = this.props.fgColor;
+    var bgColor = this.props.bgColor;
+
+    var squircle = {
+      n: 4,
+      radius: 10,
+      x: 5,
+      y: 5,
+      color: fgColor,
+      derivation: function (x) {
+        return Math.pow(Math.pow(this.radius, this.n) - Math.pow(Math.abs(x), this.n), 1 / this.n);
+      },
+      draw: function () {
+        ctx.beginPath();
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = this.color;
+        for (var i = -this.radius * 2; i <= this.radius * 2; i++) {
+          var x = i + this.x,
+              y = this.derivation(i) + this.y;
+          ctx.lineTo(x, y);
+        }
+        for (i = this.radius * 2; i >= -this.radius * 2; i--) {
+          x = i + this.x;
+          y = -this.derivation(i) + this.y;
+          ctx.lineTo(x, y);
+        }
+        ctx.closePath();
+        ctx.stroke();
+        ctx.fillStyle = this.color;
+        ctx.fill();
+      }
+    };
+
+    var squircleBg = Object.assign({}, squircle);
+    squircleBg.n = 22;
+    squircleBg.color = bgColor;
+    squircleBg.radius = canvas.width / scale / 2;
+    squircleBg.x = canvas.width / scale / 2;
+    squircleBg.y = canvas.width / scale / 2;
+
+    squircleBg.draw();
+
+    var shift = 0;
+    if (cells[0]) {
+      for (var x = 0; x < cells[0].length; x++) {
+        if (cells[0][x]) {
+          continue;
+        }
+        shift = x;
+        break;
+      }
+    }
+
+    if (mode !== 'square' && cells) {
+      for (var y = 0; y < cells.length; y++) {
+        if (!cells[y]) {
+          continue;
+        }
+
+        for (var x = 0; x < cells[y].length; x++) {
+          if (y <= shift && x <= shift) {
+            cells[y][x] = false;
+          }
+          if (y >= cells.length - shift && x <= shift) {
+            cells[y][x] = false;
+          }
+          if (y <= shift && x >= cells[y].length - shift) {
+            cells[y][x] = false;
+          }
+        }
+      }
+    }
+
+    cells.forEach(function (row, rdx) {
+      row.forEach(function (cell, cdx) {
+        var rectW = Math.ceil((cdx + 1) * tileW) - Math.floor(cdx * tileW);
+        var rectH = Math.ceil((rdx + 1) * tileH) - Math.floor(rdx * tileH);
+        var rectX = Math.round(cdx * tileW) + this.props.size * borderPart;
+        var rectY = Math.round(rdx * tileH) + this.props.size * borderPart;
+        var cornerRadius = 0;
+        ctx.fillStyle = cell ? this.props.fgColor : this.props.bgColor;
+        ctx.fillRect(rectX, rectY, rectW, rectH);
+      }, this);
+    }, this);
+
+    shift++;
+
+    if (mode === 'squircle') {
+      // Top Left corner
+      var squircleTLout = Object.assign({}, squircle);
+      squircleTLout.n = 4;
+      squircleTLout.color = fgColor;
+      squircleTLout.radius = shift / 2 * tileW - tileW / 2;
+      squircleTLout.x = shift / 2 * tileW - tileW / 2 + fullSize * borderPart;
+      squircleTLout.y = shift / 2 * tileH - tileH / 2 + fullSize * borderPart;
+
+      var squircleTLin = Object.assign({}, squircle);
+      squircleTLin.n = 4;
+      squircleTLin.color = bgColor;
+      squircleTLin.radius = shift / 2 * tileW - tileW / 2 - tileW;
+      squircleTLin.x = shift / 2 * tileW - tileW / 2 + fullSize * borderPart;
+      squircleTLin.y = shift / 2 * tileH - tileH / 2 + fullSize * borderPart;
+
+      var squircleTLcenter = Object.assign({}, squircle);
+      squircleTLcenter.n = 4;
+      squircleTLcenter.color = fgColor;
+      squircleTLcenter.radius = tileW * 1.5;
+      squircleTLcenter.x = shift / 2 * tileW - tileW / 2 + fullSize * borderPart;
+      squircleTLcenter.y = shift / 2 * tileH - tileH / 2 + fullSize * borderPart;
+
+      squircleTLout.draw();
+      squircleTLin.draw();
+      squircleTLcenter.draw();
+
+      // Top Right corner
+      var squircleTRout = Object.assign({}, squircleTLout);
+      squircleTRout.x = (cells[0].length - shift / 2) * tileW + tileW / 2 + fullSize * borderPart;
+      squircleTRout.y = shift / 2 * tileH - tileH / 2 + fullSize * borderPart;
+
+      var squircleTRin = Object.assign({}, squircleTLin);
+      squircleTRin.x = (cells[0].length - shift / 2) * tileW + tileW / 2 + fullSize * borderPart;
+      squircleTRin.y = shift / 2 * tileH - tileH / 2 + fullSize * borderPart;
+
+      var squircleTRcenter = Object.assign({}, squircleTLcenter);
+      squircleTRcenter.x = (cells[0].length - shift / 2) * tileW + tileW / 2 + fullSize * borderPart;
+      squircleTRcenter.y = shift / 2 * tileH - tileH / 2 + fullSize * borderPart;
+
+      squircleTRout.draw();
+      squircleTRin.draw();
+      squircleTRcenter.draw();
+
+      // Bottom Left corner
+
+      var squircleBLout = Object.assign({}, squircleTLout);
+      squircleBLout.x = shift / 2 * tileW - tileW / 2 + fullSize * borderPart;
+      squircleBLout.y = (cells.length - shift / 2) * tileH + tileH / 2 + fullSize * borderPart;
+
+      var squircleBLin = Object.assign({}, squircleTLin);
+      squircleBLin.x = shift / 2 * tileW - tileW / 2 + fullSize * borderPart;
+      squircleBLin.y = (cells.length - shift / 2) * tileH + tileH / 2 + fullSize * borderPart;
+
+      var squircleBLcenter = Object.assign({}, squircleTLcenter);
+      squircleBLcenter.x = shift / 2 * tileW - tileW / 2 + fullSize * borderPart;
+      squircleBLcenter.y = (cells.length - shift / 2) * tileH + tileH / 2 + fullSize * borderPart;
+
+      squircleBLout.draw();
+      squircleBLin.draw();
+      squircleBLcenter.draw();
+    }
+
+    if (mode === 'circle') {
+      ctx.strokeStyle = this.props.fgColor;
+      ctx.fillStyle = this.props.fgColor;
+      ctx.lineWidth = tileW;
+
+      //TL
+      ctx.beginPath();
+      ctx.arc(shift / 2 * tileW - tileW / 2 + fullSize * borderPart, shift / 2 * tileH - tileH / 2 + fullSize * borderPart, shift / 2 * tileW - tileW, 0, 2 * Math.PI);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(shift / 2 * tileW - tileW / 2 + fullSize * borderPart, shift / 2 * tileH - tileH / 2 + fullSize * borderPart, tileW, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.stroke();
+
+      // TR
+      ctx.beginPath();
+      ctx.arc((cells[0].length - shift / 2) * tileW + tileW / 2 + fullSize * borderPart, shift / 2 * tileH - tileH / 2 + fullSize * borderPart, shift / 2 * tileW - tileW, 0, 2 * Math.PI);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc((cells[0].length - shift / 2) * tileW + tileW / 2 + fullSize * borderPart, shift / 2 * tileH - tileH / 2 + fullSize * borderPart, tileW, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.stroke();
+
+      // BL
+      ctx.beginPath();
+      ctx.arc(shift / 2 * tileW - tileW / 2 + fullSize * borderPart, (cells.length - shift / 2) * tileH + tileH / 2 + fullSize * borderPart, shift / 2 * tileW - tileW, 0, 2 * Math.PI);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(shift / 2 * tileW - tileW / 2 + fullSize * borderPart, (cells.length - shift / 2) * tileH + tileH / 2 + fullSize * borderPart, tileW, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    if (this.props.showCenter) {
+      var squircle1 = Object.assign({}, squircle);
+      squircle1.n = 5;
+      squircle1.color = fgColor;
+      squircle1.radius = size * iconPart + tileW;
+      squircle1.x = size / 2 + fullSize * borderPart;
+      squircle1.y = size / 2 + fullSize * borderPart;
+
+      var squircle2 = Object.assign({}, squircle);
+      squircle2.n = 5;
+      squircle2.color = bgColor;
+      squircle2.radius = size * iconPart;
+      squircle2.x = size / 2 + fullSize * borderPart;
+      squircle2.y = size / 2 + fullSize * borderPart;
+
+      squircle1.draw();
+      squircle2.draw();
+    }
+
+    if (this.props.logo) {
+      var self = this;
+      var fullSize = this.props.size;
+      var size = this.props.size * (1 - 2 * borderPart);
+      var image = document.createElement('img');
+      image.src = this.props.logo;
+      image.onload = function () {
+        var dwidth = self.props.logoWidth || size * 0.18;
+        var dheight = self.props.logoHeight || image.height / image.width * dwidth;
+        var dx = (size - dwidth) / 2 + fullSize * borderPart;
+        var dy = (size - dheight) / 2 + fullSize * borderPart;
+        image.width = dwidth;
+        image.height = dheight;
+        ctx.drawImage(image, dx, dy, dwidth, dheight);
+      };
+    }
+  }
+
+  render() {
+    return React.createElement('canvas', {
+      style: { height: this.props.displaySize, width: this.props.displaySize },
+      height: this.props.displaySize,
+      width: this.props.displaySize,
+      ref: 'canvas'
+    });
+  }
+}
+
+QRCode.propTypes = {
+  value: PropTypes.string.isRequired,
+  size: PropTypes.string,
+  displaySize: PropTypes.string,
+  borderPart: PropTypes.number,
+  bgColor: PropTypes.string,
+  fgColor: PropTypes.string,
+  mode: PropTypes.string,
+  showCenter: PropTypes.bool,
+  logo: PropTypes.string,
+  logoWidth: PropTypes.number,
+  logoHeight: PropTypes.number
+};
+
+QRCode.defaultProps = {
+  size: "128",
+  displaySize: "128",
+  borderPart: 0.1,
+  bgColor: '#FFFFFF',
+  fgColor: '#000000',
+  mode: 'square',
+  showCenter: false,
+  value: 'http://facebook.github.io/react/'
+};
+
+module.exports = QRCode;
+
+},{"prop-types":11,"qr.js":13,"react":179,"react-dom":23}],3:[function(require,module,exports){
+"use strict";
+
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ *
+ * 
+ */
+
+function makeEmptyFunction(arg) {
+  return function () {
+    return arg;
+  };
+}
+
+/**
+ * This function accepts and discards inputs; it has no side effects. This is
+ * primarily useful idiomatically for overridable function endpoints which
+ * always need to be callable, since JS lacks a null-call idiom ala Cocoa.
+ */
+var emptyFunction = function emptyFunction() {};
+
+emptyFunction.thatReturns = makeEmptyFunction;
+emptyFunction.thatReturnsFalse = makeEmptyFunction(false);
+emptyFunction.thatReturnsTrue = makeEmptyFunction(true);
+emptyFunction.thatReturnsNull = makeEmptyFunction(null);
+emptyFunction.thatReturnsThis = function () {
+  return this;
+};
+emptyFunction.thatReturnsArgument = function (arg) {
+  return arg;
+};
+
+module.exports = emptyFunction;
+},{}],4:[function(require,module,exports){
+(function (process){
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ *
+ */
+
+'use strict';
+
+/**
+ * Use invariant() to assert state which your program assumes to be true.
+ *
+ * Provide sprintf-style format (only %s is supported) and arguments
+ * to provide information about what broke and what you were
+ * expecting.
+ *
+ * The invariant message will be stripped in production, but the invariant
+ * will remain to ensure logic does not differ in production.
+ */
+
+var validateFormat = function validateFormat(format) {};
+
+if (process.env.NODE_ENV !== 'production') {
+  validateFormat = function validateFormat(format) {
+    if (format === undefined) {
+      throw new Error('invariant requires an error message argument');
+    }
+  };
+}
+
+function invariant(condition, format, a, b, c, d, e, f) {
+  validateFormat(format);
+
+  if (!condition) {
+    var error;
+    if (format === undefined) {
+      error = new Error('Minified exception occurred; use the non-minified dev environment ' + 'for the full error message and additional helpful warnings.');
+    } else {
+      var args = [a, b, c, d, e, f];
+      var argIndex = 0;
+      error = new Error(format.replace(/%s/g, function () {
+        return args[argIndex++];
+      }));
+      error.name = 'Invariant Violation';
+    }
+
+    error.framesToPop = 1; // we don't care about invariant's own frame
+    throw error;
+  }
+}
+
+module.exports = invariant;
+}).call(this,require('_process'))
+},{"_process":7}],5:[function(require,module,exports){
+(function (process){
+/**
+ * Copyright (c) 2014-present, Facebook, Inc.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ *
+ */
+
+'use strict';
+
+var emptyFunction = require('./emptyFunction');
+
+/**
+ * Similar to invariant but only logs a warning if the condition is not met.
+ * This can be used to log issues in development environments in critical
+ * paths. Removing the logging code for production environments will keep the
+ * same logic and follow the same code paths.
+ */
+
+var warning = emptyFunction;
+
+if (process.env.NODE_ENV !== 'production') {
+  var printWarning = function printWarning(format) {
+    for (var _len = arguments.length, args = Array(_len > 1 ? _len - 1 : 0), _key = 1; _key < _len; _key++) {
+      args[_key - 1] = arguments[_key];
+    }
+
+    var argIndex = 0;
+    var message = 'Warning: ' + format.replace(/%s/g, function () {
+      return args[argIndex++];
+    });
+    if (typeof console !== 'undefined') {
+      console.error(message);
+    }
+    try {
+      // --- Welcome to debugging React ---
+      // This error was thrown as a convenience so that you can use this stack
+      // to find the callsite that caused this warning to fire.
+      throw new Error(message);
+    } catch (x) {}
+  };
+
+  warning = function warning(condition, format) {
+    if (format === undefined) {
+      throw new Error('`warning(condition, format, ...args)` requires a warning ' + 'message argument');
+    }
+
+    if (format.indexOf('Failed Composite propType: ') === 0) {
+      return; // Ignore CompositeComponent proptype check.
+    }
+
+    if (!condition) {
+      for (var _len2 = arguments.length, args = Array(_len2 > 2 ? _len2 - 2 : 0), _key2 = 2; _key2 < _len2; _key2++) {
+        args[_key2 - 2] = arguments[_key2];
+      }
+
+      printWarning.apply(undefined, [format].concat(args));
+    }
+  };
+}
+
+module.exports = warning;
+}).call(this,require('_process'))
+},{"./emptyFunction":3,"_process":7}],6:[function(require,module,exports){
+/*
+object-assign
+(c) Sindre Sorhus
+@license MIT
+*/
+
+'use strict';
+/* eslint-disable no-unused-vars */
+var getOwnPropertySymbols = Object.getOwnPropertySymbols;
+var hasOwnProperty = Object.prototype.hasOwnProperty;
+var propIsEnumerable = Object.prototype.propertyIsEnumerable;
+
+function toObject(val) {
+	if (val === null || val === undefined) {
+		throw new TypeError('Object.assign cannot be called with null or undefined');
+	}
+
+	return Object(val);
+}
+
+function shouldUseNative() {
+	try {
+		if (!Object.assign) {
+			return false;
+		}
+
+		// Detect buggy property enumeration order in older V8 versions.
+
+		// https://bugs.chromium.org/p/v8/issues/detail?id=4118
+		var test1 = new String('abc');  // eslint-disable-line no-new-wrappers
+		test1[5] = 'de';
+		if (Object.getOwnPropertyNames(test1)[0] === '5') {
+			return false;
+		}
+
+		// https://bugs.chromium.org/p/v8/issues/detail?id=3056
+		var test2 = {};
+		for (var i = 0; i < 10; i++) {
+			test2['_' + String.fromCharCode(i)] = i;
+		}
+		var order2 = Object.getOwnPropertyNames(test2).map(function (n) {
+			return test2[n];
+		});
+		if (order2.join('') !== '0123456789') {
+			return false;
+		}
+
+		// https://bugs.chromium.org/p/v8/issues/detail?id=3056
+		var test3 = {};
+		'abcdefghijklmnopqrst'.split('').forEach(function (letter) {
+			test3[letter] = letter;
+		});
+		if (Object.keys(Object.assign({}, test3)).join('') !==
+				'abcdefghijklmnopqrst') {
+			return false;
+		}
+
+		return true;
+	} catch (err) {
+		// We don't expect any of the above to throw, but better to be safe.
+		return false;
+	}
+}
+
+module.exports = shouldUseNative() ? Object.assign : function (target, source) {
+	var from;
+	var to = toObject(target);
+	var symbols;
+
+	for (var s = 1; s < arguments.length; s++) {
+		from = Object(arguments[s]);
+
+		for (var key in from) {
+			if (hasOwnProperty.call(from, key)) {
+				to[key] = from[key];
+			}
+		}
+
+		if (getOwnPropertySymbols) {
+			symbols = getOwnPropertySymbols(from);
+			for (var i = 0; i < symbols.length; i++) {
+				if (propIsEnumerable.call(from, symbols[i])) {
+					to[symbols[i]] = from[symbols[i]];
+				}
+			}
+		}
+	}
+
+	return to;
+};
+
+},{}],7:[function(require,module,exports){
 // shim for using process in browser
 var process = module.exports = {};
 
@@ -184,635 +817,6 @@ process.chdir = function (dir) {
 };
 process.umask = function() { return 0; };
 
-},{}],2:[function(require,module,exports){
-var QRCode = require('../lib/index.js');
-var React = require('react');
-var ReactDOM = require('react-dom');
-
-var App = React.createClass({
-    displayName: 'App',
-
-    getInitialState: function () {
-        return {
-            text: ''
-        };
-    },
-
-    _onChange: function (event) {
-        this.setState({ text: event.target.value });
-    },
-
-    render: function () {
-        return React.createElement(
-            'div',
-            { className: 'application' },
-            React.createElement('input', { type: 'text', className: 'qrcode-input',
-                onChange: this._onChange,
-                value: this.state.text,
-                placeholder: 'input string' }),
-            React.createElement(QRCode, { className: 'qrcode', value: this.state.text,
-                size: 1000,
-                displaySize: 360,
-                mode: 'squircle',
-                fgColor: 'black',
-                bgColor: 'white' })
-        );
-    }
-});
-
-var sty;
-
-ReactDOM.render(React.createElement(App, null), document.getElementById('demo'));
-
-},{"../lib/index.js":3,"react":179,"react-dom":23}],3:[function(require,module,exports){
-'use strict';
-
-var React = require('react');
-var PropTypes = require('prop-types');
-var ReactDOM = require('react-dom');
-var qr = require('qr.js');
-
-function getBackingStorePixelRatio(ctx) {
-				return ctx.webkitBackingStorePixelRatio || ctx.mozBackingStorePixelRatio || ctx.msBackingStorePixelRatio || ctx.oBackingStorePixelRatio || ctx.backingStorePixelRatio || 1;
-}
-
-var getDOMNode;
-if (/^0\.14/.test(React.version)) {
-				getDOMNode = function (ref) {
-								return ref;
-				};
-} else {
-				getDOMNode = function (ref) {
-								return ReactDOM.findDOMNode(ref);
-				};
-}
-
-class QRCode extends React.Component {
-				shouldComponentUpdate(nextProps) {
-								var that = this;
-								return Object.keys(QRCode.propTypes).some(function (k) {
-												return that.props[k] !== nextProps[k];
-								});
-				}
-
-				componentDidMount() {
-								this.update();
-				}
-
-				componentDidUpdate() {
-								this.update();
-				}
-
-				utf16to8(str) {
-								var out, i, len, c;
-								out = "";
-								len = str.length;
-								for (i = 0; i < len; i++) {
-												c = str.charCodeAt(i);
-												if (c >= 0x0001 && c <= 0x007F) {
-																out += str.charAt(i);
-												} else if (c > 0x07FF) {
-																out += String.fromCharCode(0xE0 | c >> 12 & 0x0F);
-																out += String.fromCharCode(0x80 | c >> 6 & 0x3F);
-																out += String.fromCharCode(0x80 | c >> 0 & 0x3F);
-												} else {
-																out += String.fromCharCode(0xC0 | c >> 6 & 0x1F);
-																out += String.fromCharCode(0x80 | c >> 0 & 0x3F);
-												}
-								}
-								return out;
-				}
-
-				update() {
-								var value = this.utf16to8(this.props.value);
-								var qrcode = qr(value);
-								var canvas = getDOMNode(this.refs.canvas);
-
-								var borderPart = this.props.borderPart || 0;
-								var iconPart = this.props.iconPart || 0.115;
-								var mode = this.props.mode !== 'square' && this.props.mode !== 'circle' && this.props.mode !== 'squircle' ? 'square' : this.props.mode;
-
-								var ctx = canvas.getContext('2d');
-								var cells = qrcode.modules;
-
-								var tileW = this.props.size * (1 - 2 * borderPart) / cells.length;
-								var tileH = this.props.size * (1 - 2 * borderPart) / cells.length;
-								var scale = 1; //(window.devicePixelRatio || 1) / getBackingStorePixelRatio(ctx);
-								canvas.height = canvas.width = this.props.size * scale;
-								ctx.scale(scale, scale);
-
-								var size = this.props.size * (1 - 2 * borderPart);
-								var fullSize = this.props.size;
-								var fgColor = this.props.fgColor;
-								var bgColor = this.props.bgColor;
-
-								var squircle = {
-												n: 4,
-												radius: 10,
-												x: 5,
-												y: 5,
-												color: fgColor,
-												derivation: function (x) {
-																return Math.pow(Math.pow(this.radius, this.n) - Math.pow(Math.abs(x), this.n), 1 / this.n);
-												},
-												draw: function () {
-																ctx.beginPath();
-																ctx.lineWidth = 1;
-																ctx.strokeStyle = this.color;
-																for (var i = -this.radius * 2; i <= this.radius * 2; i++) {
-																				var x = i + this.x,
-																				    y = this.derivation(i) + this.y;
-																				ctx.lineTo(x, y);
-																}
-																for (i = this.radius * 2; i >= -this.radius * 2; i--) {
-																				x = i + this.x;
-																				y = -this.derivation(i) + this.y;
-																				ctx.lineTo(x, y);
-																}
-																ctx.closePath();
-																ctx.stroke();
-																ctx.fillStyle = this.color;
-																ctx.fill();
-												}
-								};
-
-								var squircleBg = Object.assign({}, squircle);
-								squircleBg.n = 22;
-								squircleBg.color = bgColor;
-								squircleBg.radius = canvas.width / 2;
-								squircleBg.x = canvas.width / 2;
-								squircleBg.y = canvas.width / 2;
-
-								squircleBg.draw();
-
-								var shift = 0;
-								if (cells[0]) {
-												for (var x = 0; x < cells[0].length; x++) {
-																if (cells[0][x]) {
-																				continue;
-																}
-																shift = x;
-																break;
-												}
-								}
-
-								if (mode !== 'square' && cells) {
-												for (var y = 0; y < cells.length; y++) {
-																if (!cells[y]) {
-																				continue;
-																}
-
-																for (var x = 0; x < cells[y].length; x++) {
-																				if (y <= shift && x <= shift) {
-																								cells[y][x] = false;
-																				}
-																				if (y >= cells.length - shift && x <= shift) {
-																								cells[y][x] = false;
-																				}
-																				if (y <= shift && x >= cells[y].length - shift) {
-																								cells[y][x] = false;
-																				}
-																}
-												}
-								}
-
-								cells.forEach(function (row, rdx) {
-												row.forEach(function (cell, cdx) {
-																var rectW = Math.ceil((cdx + 1) * tileW) - Math.floor(cdx * tileW);
-																var rectH = Math.ceil((rdx + 1) * tileH) - Math.floor(rdx * tileH);
-																var rectX = Math.round(cdx * tileW) + this.props.size * borderPart;
-																var rectY = Math.round(rdx * tileH) + this.props.size * borderPart;
-																var cornerRadius = 0;
-																ctx.fillStyle = cell ? this.props.fgColor : this.props.bgColor;
-																ctx.fillRect(rectX, rectY, rectW, rectH);
-												}, this);
-								}, this);
-
-								shift++;
-
-								if (mode === 'squircle') {
-												// Top Left corner
-												var squircleTLout = Object.assign({}, squircle);
-												squircleTLout.n = 4;
-												squircleTLout.color = fgColor;
-												squircleTLout.radius = shift / 2 * tileW - tileW / 2;
-												squircleTLout.x = shift / 2 * tileW - tileW / 2 + fullSize * borderPart;
-												squircleTLout.y = shift / 2 * tileH - tileH / 2 + fullSize * borderPart;
-
-												var squircleTLin = Object.assign({}, squircle);
-												squircleTLin.n = 4;
-												squircleTLin.color = bgColor;
-												squircleTLin.radius = shift / 2 * tileW - tileW / 2 - tileW;
-												squircleTLin.x = shift / 2 * tileW - tileW / 2 + fullSize * borderPart;
-												squircleTLin.y = shift / 2 * tileH - tileH / 2 + fullSize * borderPart;
-
-												var squircleTLcenter = Object.assign({}, squircle);
-												squircleTLcenter.n = 4;
-												squircleTLcenter.color = fgColor;
-												squircleTLcenter.radius = tileW * 1.5;
-												squircleTLcenter.x = shift / 2 * tileW - tileW / 2 + fullSize * borderPart;
-												squircleTLcenter.y = shift / 2 * tileH - tileH / 2 + fullSize * borderPart;
-
-												squircleTLout.draw();
-												squircleTLin.draw();
-												squircleTLcenter.draw();
-
-												// Top Right corner
-												var squircleTRout = Object.assign({}, squircleTLout);
-												squircleTRout.x = (cells[0].length - shift / 2) * tileW + tileW / 2 + fullSize * borderPart;
-												squircleTRout.y = shift / 2 * tileH - tileH / 2 + fullSize * borderPart;
-
-												var squircleTRin = Object.assign({}, squircleTLin);
-												squircleTRin.x = (cells[0].length - shift / 2) * tileW + tileW / 2 + fullSize * borderPart;
-												squircleTRin.y = shift / 2 * tileH - tileH / 2 + fullSize * borderPart;
-
-												var squircleTRcenter = Object.assign({}, squircleTLcenter);
-												squircleTRcenter.x = (cells[0].length - shift / 2) * tileW + tileW / 2 + fullSize * borderPart;
-												squircleTRcenter.y = shift / 2 * tileH - tileH / 2 + fullSize * borderPart;
-
-												squircleTRout.draw();
-												squircleTRin.draw();
-												squircleTRcenter.draw();
-
-												// Bottom Left corner
-
-												var squircleBLout = Object.assign({}, squircleTLout);
-												squircleBLout.x = shift / 2 * tileW - tileW / 2 + fullSize * borderPart;
-												squircleBLout.y = (cells.length - shift / 2) * tileH + tileH / 2 + fullSize * borderPart;
-
-												var squircleBLin = Object.assign({}, squircleTLin);
-												squircleBLin.x = shift / 2 * tileW - tileW / 2 + fullSize * borderPart;
-												squircleBLin.y = (cells.length - shift / 2) * tileH + tileH / 2 + fullSize * borderPart;
-
-												var squircleBLcenter = Object.assign({}, squircleTLcenter);
-												squircleBLcenter.x = shift / 2 * tileW - tileW / 2 + fullSize * borderPart;
-												squircleBLcenter.y = (cells.length - shift / 2) * tileH + tileH / 2 + fullSize * borderPart;
-
-												squircleBLout.draw();
-												squircleBLin.draw();
-												squircleBLcenter.draw();
-								}
-
-								if (mode === 'circle') {
-												ctx.strokeStyle = this.props.fgColor;
-												ctx.fillStyle = this.props.fgColor;
-												ctx.lineWidth = tileW;
-
-												//TL
-												ctx.beginPath();
-												ctx.arc(shift / 2 * tileW - tileW / 2 + fullSize * borderPart, shift / 2 * tileH - tileH / 2 + fullSize * borderPart, shift / 2 * tileW - tileW, 0, 2 * Math.PI);
-												ctx.stroke();
-
-												ctx.beginPath();
-												ctx.arc(shift / 2 * tileW - tileW / 2 + fullSize * borderPart, shift / 2 * tileH - tileH / 2 + fullSize * borderPart, tileW, 0, 2 * Math.PI);
-												ctx.fill();
-												ctx.stroke();
-
-												// TR
-												ctx.beginPath();
-												ctx.arc((cells[0].length - shift / 2) * tileW + tileW / 2 + fullSize * borderPart, shift / 2 * tileH - tileH / 2 + fullSize * borderPart, shift / 2 * tileW - tileW, 0, 2 * Math.PI);
-												ctx.stroke();
-
-												ctx.beginPath();
-												ctx.arc((cells[0].length - shift / 2) * tileW + tileW / 2 + fullSize * borderPart, shift / 2 * tileH - tileH / 2 + fullSize * borderPart, tileW, 0, 2 * Math.PI);
-												ctx.fill();
-												ctx.stroke();
-
-												// BL
-												ctx.beginPath();
-												ctx.arc(shift / 2 * tileW - tileW / 2 + fullSize * borderPart, (cells.length - shift / 2) * tileH + tileH / 2 + fullSize * borderPart, shift / 2 * tileW - tileW, 0, 2 * Math.PI);
-												ctx.stroke();
-
-												ctx.beginPath();
-												ctx.arc(shift / 2 * tileW - tileW / 2 + fullSize * borderPart, (cells.length - shift / 2) * tileH + tileH / 2 + fullSize * borderPart, tileW, 0, 2 * Math.PI);
-												ctx.fill();
-												ctx.stroke();
-								}
-
-								if (this.props.showCenter) {
-												var squircle1 = Object.assign({}, squircle);
-												squircle1.n = 5;
-												squircle1.color = fgColor;
-												squircle1.radius = size * iconPart + tileW;
-												squircle1.x = size / 2 + fullSize * borderPart;
-												squircle1.y = size / 2 + fullSize * borderPart;
-
-												var squircle2 = Object.assign({}, squircle);
-												squircle2.n = 5;
-												squircle2.color = bgColor;
-												squircle2.radius = size * iconPart;
-												squircle2.x = size / 2 + fullSize * borderPart;
-												squircle2.y = size / 2 + fullSize * borderPart;
-
-												squircle1.draw();
-												squircle2.draw();
-								}
-
-								if (this.props.logo) {
-												var self = this;
-												var fullSize = this.props.size;
-												var size = this.props.size * (1 - 2 * borderPart);
-												var image = document.createElement('img');
-												image.src = this.props.logo;
-												image.onload = function () {
-																var dwidth = self.props.logoWidth || size * 0.18;
-																var dheight = self.props.logoHeight || image.height / image.width * dwidth;
-																var dx = (size - dwidth) / 2 + fullSize * borderPart;
-																var dy = (size - dheight) / 2 + fullSize * borderPart;
-																image.width = dwidth;
-																image.height = dheight;
-																ctx.drawImage(image, dx, dy, dwidth, dheight);
-												};
-								}
-				}
-
-				render() {
-								return React.createElement('canvas', {
-												style: { height: this.props.displaySize, width: this.props.displaySize },
-												height: this.props.displaySize,
-												width: this.props.displaySize,
-												ref: 'canvas'
-								});
-				}
-}
-
-QRCode.propTypes = {
-				value: PropTypes.string.isRequired,
-				size: PropTypes.number,
-				displaySize: PropTypes.number,
-				borderPart: PropTypes.number,
-				bgColor: PropTypes.string,
-				fgColor: PropTypes.string,
-				mode: PropTypes.string,
-				showCenter: PropTypes.bool,
-				logo: PropTypes.string,
-				logoWidth: PropTypes.number,
-				logoHeight: PropTypes.number
-};
-
-QRCode.defaultProps = {
-				size: 128,
-				displaySize: 128,
-				borderPart: 0.1,
-				bgColor: '#FFFFFF',
-				fgColor: '#000000',
-				mode: 'square',
-				showCenter: false,
-				value: 'http://facebook.github.io/react/'
-};
-
-module.exports = QRCode;
-
-},{"prop-types":11,"qr.js":13,"react":179,"react-dom":23}],4:[function(require,module,exports){
-"use strict";
-
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- *
- * 
- */
-
-function makeEmptyFunction(arg) {
-  return function () {
-    return arg;
-  };
-}
-
-/**
- * This function accepts and discards inputs; it has no side effects. This is
- * primarily useful idiomatically for overridable function endpoints which
- * always need to be callable, since JS lacks a null-call idiom ala Cocoa.
- */
-var emptyFunction = function emptyFunction() {};
-
-emptyFunction.thatReturns = makeEmptyFunction;
-emptyFunction.thatReturnsFalse = makeEmptyFunction(false);
-emptyFunction.thatReturnsTrue = makeEmptyFunction(true);
-emptyFunction.thatReturnsNull = makeEmptyFunction(null);
-emptyFunction.thatReturnsThis = function () {
-  return this;
-};
-emptyFunction.thatReturnsArgument = function (arg) {
-  return arg;
-};
-
-module.exports = emptyFunction;
-},{}],5:[function(require,module,exports){
-(function (process){
-/**
- * Copyright (c) 2013-present, Facebook, Inc.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- *
- */
-
-'use strict';
-
-/**
- * Use invariant() to assert state which your program assumes to be true.
- *
- * Provide sprintf-style format (only %s is supported) and arguments
- * to provide information about what broke and what you were
- * expecting.
- *
- * The invariant message will be stripped in production, but the invariant
- * will remain to ensure logic does not differ in production.
- */
-
-var validateFormat = function validateFormat(format) {};
-
-if (process.env.NODE_ENV !== 'production') {
-  validateFormat = function validateFormat(format) {
-    if (format === undefined) {
-      throw new Error('invariant requires an error message argument');
-    }
-  };
-}
-
-function invariant(condition, format, a, b, c, d, e, f) {
-  validateFormat(format);
-
-  if (!condition) {
-    var error;
-    if (format === undefined) {
-      error = new Error('Minified exception occurred; use the non-minified dev environment ' + 'for the full error message and additional helpful warnings.');
-    } else {
-      var args = [a, b, c, d, e, f];
-      var argIndex = 0;
-      error = new Error(format.replace(/%s/g, function () {
-        return args[argIndex++];
-      }));
-      error.name = 'Invariant Violation';
-    }
-
-    error.framesToPop = 1; // we don't care about invariant's own frame
-    throw error;
-  }
-}
-
-module.exports = invariant;
-}).call(this,require('_process'))
-},{"_process":1}],6:[function(require,module,exports){
-(function (process){
-/**
- * Copyright (c) 2014-present, Facebook, Inc.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- *
- */
-
-'use strict';
-
-var emptyFunction = require('./emptyFunction');
-
-/**
- * Similar to invariant but only logs a warning if the condition is not met.
- * This can be used to log issues in development environments in critical
- * paths. Removing the logging code for production environments will keep the
- * same logic and follow the same code paths.
- */
-
-var warning = emptyFunction;
-
-if (process.env.NODE_ENV !== 'production') {
-  var printWarning = function printWarning(format) {
-    for (var _len = arguments.length, args = Array(_len > 1 ? _len - 1 : 0), _key = 1; _key < _len; _key++) {
-      args[_key - 1] = arguments[_key];
-    }
-
-    var argIndex = 0;
-    var message = 'Warning: ' + format.replace(/%s/g, function () {
-      return args[argIndex++];
-    });
-    if (typeof console !== 'undefined') {
-      console.error(message);
-    }
-    try {
-      // --- Welcome to debugging React ---
-      // This error was thrown as a convenience so that you can use this stack
-      // to find the callsite that caused this warning to fire.
-      throw new Error(message);
-    } catch (x) {}
-  };
-
-  warning = function warning(condition, format) {
-    if (format === undefined) {
-      throw new Error('`warning(condition, format, ...args)` requires a warning ' + 'message argument');
-    }
-
-    if (format.indexOf('Failed Composite propType: ') === 0) {
-      return; // Ignore CompositeComponent proptype check.
-    }
-
-    if (!condition) {
-      for (var _len2 = arguments.length, args = Array(_len2 > 2 ? _len2 - 2 : 0), _key2 = 2; _key2 < _len2; _key2++) {
-        args[_key2 - 2] = arguments[_key2];
-      }
-
-      printWarning.apply(undefined, [format].concat(args));
-    }
-  };
-}
-
-module.exports = warning;
-}).call(this,require('_process'))
-},{"./emptyFunction":4,"_process":1}],7:[function(require,module,exports){
-/*
-object-assign
-(c) Sindre Sorhus
-@license MIT
-*/
-
-'use strict';
-/* eslint-disable no-unused-vars */
-var getOwnPropertySymbols = Object.getOwnPropertySymbols;
-var hasOwnProperty = Object.prototype.hasOwnProperty;
-var propIsEnumerable = Object.prototype.propertyIsEnumerable;
-
-function toObject(val) {
-	if (val === null || val === undefined) {
-		throw new TypeError('Object.assign cannot be called with null or undefined');
-	}
-
-	return Object(val);
-}
-
-function shouldUseNative() {
-	try {
-		if (!Object.assign) {
-			return false;
-		}
-
-		// Detect buggy property enumeration order in older V8 versions.
-
-		// https://bugs.chromium.org/p/v8/issues/detail?id=4118
-		var test1 = new String('abc');  // eslint-disable-line no-new-wrappers
-		test1[5] = 'de';
-		if (Object.getOwnPropertyNames(test1)[0] === '5') {
-			return false;
-		}
-
-		// https://bugs.chromium.org/p/v8/issues/detail?id=3056
-		var test2 = {};
-		for (var i = 0; i < 10; i++) {
-			test2['_' + String.fromCharCode(i)] = i;
-		}
-		var order2 = Object.getOwnPropertyNames(test2).map(function (n) {
-			return test2[n];
-		});
-		if (order2.join('') !== '0123456789') {
-			return false;
-		}
-
-		// https://bugs.chromium.org/p/v8/issues/detail?id=3056
-		var test3 = {};
-		'abcdefghijklmnopqrst'.split('').forEach(function (letter) {
-			test3[letter] = letter;
-		});
-		if (Object.keys(Object.assign({}, test3)).join('') !==
-				'abcdefghijklmnopqrst') {
-			return false;
-		}
-
-		return true;
-	} catch (err) {
-		// We don't expect any of the above to throw, but better to be safe.
-		return false;
-	}
-}
-
-module.exports = shouldUseNative() ? Object.assign : function (target, source) {
-	var from;
-	var to = toObject(target);
-	var symbols;
-
-	for (var s = 1; s < arguments.length; s++) {
-		from = Object(arguments[s]);
-
-		for (var key in from) {
-			if (hasOwnProperty.call(from, key)) {
-				to[key] = from[key];
-			}
-		}
-
-		if (getOwnPropertySymbols) {
-			symbols = getOwnPropertySymbols(from);
-			for (var i = 0; i < symbols.length; i++) {
-				if (propIsEnumerable.call(from, symbols[i])) {
-					to[symbols[i]] = from[symbols[i]];
-				}
-			}
-		}
-	}
-
-	return to;
-};
-
 },{}],8:[function(require,module,exports){
 (function (process){
 /**
@@ -876,7 +880,7 @@ function checkPropTypes(typeSpecs, values, location, componentName, getStack) {
 module.exports = checkPropTypes;
 
 }).call(this,require('_process'))
-},{"./lib/ReactPropTypesSecret":12,"_process":1,"fbjs/lib/invariant":5,"fbjs/lib/warning":6}],9:[function(require,module,exports){
+},{"./lib/ReactPropTypesSecret":12,"_process":7,"fbjs/lib/invariant":4,"fbjs/lib/warning":5}],9:[function(require,module,exports){
 /**
  * Copyright (c) 2013-present, Facebook, Inc.
  *
@@ -936,7 +940,7 @@ module.exports = function() {
   return ReactPropTypes;
 };
 
-},{"./lib/ReactPropTypesSecret":12,"fbjs/lib/emptyFunction":4,"fbjs/lib/invariant":5}],10:[function(require,module,exports){
+},{"./lib/ReactPropTypesSecret":12,"fbjs/lib/emptyFunction":3,"fbjs/lib/invariant":4}],10:[function(require,module,exports){
 (function (process){
 /**
  * Copyright (c) 2013-present, Facebook, Inc.
@@ -1482,7 +1486,7 @@ module.exports = function(isValidElement, throwOnDirectAccess) {
 };
 
 }).call(this,require('_process'))
-},{"./checkPropTypes":8,"./lib/ReactPropTypesSecret":12,"_process":1,"fbjs/lib/emptyFunction":4,"fbjs/lib/invariant":5,"fbjs/lib/warning":6,"object-assign":7}],11:[function(require,module,exports){
+},{"./checkPropTypes":8,"./lib/ReactPropTypesSecret":12,"_process":7,"fbjs/lib/emptyFunction":3,"fbjs/lib/invariant":4,"fbjs/lib/warning":5,"object-assign":6}],11:[function(require,module,exports){
 (function (process){
 /**
  * Copyright (c) 2013-present, Facebook, Inc.
@@ -1514,7 +1518,7 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 }).call(this,require('_process'))
-},{"./factoryWithThrowingShims":9,"./factoryWithTypeCheckers":10,"_process":1}],12:[function(require,module,exports){
+},{"./factoryWithThrowingShims":9,"./factoryWithTypeCheckers":10,"_process":7}],12:[function(require,module,exports){
 /**
  * Copyright (c) 2013-present, Facebook, Inc.
  *
@@ -3532,7 +3536,7 @@ ReactPerf.measureMethods(CSSPropertyOperations, 'CSSPropertyOperations', {
 
 module.exports = CSSPropertyOperations;
 }).call(this,require('_process'))
-},{"./CSSProperty":26,"./ReactPerf":94,"./dangerousStyleValue":128,"_process":1,"fbjs/lib/ExecutionEnvironment":153,"fbjs/lib/camelizeStyleName":155,"fbjs/lib/hyphenateStyleName":166,"fbjs/lib/memoizeStringOnly":173,"fbjs/lib/warning":178}],28:[function(require,module,exports){
+},{"./CSSProperty":26,"./ReactPerf":94,"./dangerousStyleValue":128,"_process":7,"fbjs/lib/ExecutionEnvironment":153,"fbjs/lib/camelizeStyleName":155,"fbjs/lib/hyphenateStyleName":166,"fbjs/lib/memoizeStringOnly":173,"fbjs/lib/warning":178}],28:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -3628,7 +3632,7 @@ PooledClass.addPoolingTo(CallbackQueue);
 
 module.exports = CallbackQueue;
 }).call(this,require('_process'))
-},{"./Object.assign":45,"./PooledClass":46,"_process":1,"fbjs/lib/invariant":167}],29:[function(require,module,exports){
+},{"./Object.assign":45,"./PooledClass":46,"_process":7,"fbjs/lib/invariant":167}],29:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -4106,7 +4110,7 @@ ReactPerf.measureMethods(DOMChildrenOperations, 'DOMChildrenOperations', {
 
 module.exports = DOMChildrenOperations;
 }).call(this,require('_process'))
-},{"./Danger":34,"./ReactMultiChildUpdateTypes":90,"./ReactPerf":94,"./setInnerHTML":147,"./setTextContent":148,"_process":1,"fbjs/lib/invariant":167}],32:[function(require,module,exports){
+},{"./Danger":34,"./ReactMultiChildUpdateTypes":90,"./ReactPerf":94,"./setInnerHTML":147,"./setTextContent":148,"_process":7,"fbjs/lib/invariant":167}],32:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -4343,7 +4347,7 @@ var DOMProperty = {
 
 module.exports = DOMProperty;
 }).call(this,require('_process'))
-},{"_process":1,"fbjs/lib/invariant":167}],33:[function(require,module,exports){
+},{"_process":7,"fbjs/lib/invariant":167}],33:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -4571,7 +4575,7 @@ ReactPerf.measureMethods(DOMPropertyOperations, 'DOMPropertyOperations', {
 
 module.exports = DOMPropertyOperations;
 }).call(this,require('_process'))
-},{"./DOMProperty":32,"./ReactPerf":94,"./quoteAttributeValueForBrowser":145,"_process":1,"fbjs/lib/warning":178}],34:[function(require,module,exports){
+},{"./DOMProperty":32,"./ReactPerf":94,"./quoteAttributeValueForBrowser":145,"_process":7,"fbjs/lib/warning":178}],34:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -4719,7 +4723,7 @@ var Danger = {
 
 module.exports = Danger;
 }).call(this,require('_process'))
-},{"_process":1,"fbjs/lib/ExecutionEnvironment":153,"fbjs/lib/createNodesFromMarkup":158,"fbjs/lib/emptyFunction":159,"fbjs/lib/getMarkupWrap":163,"fbjs/lib/invariant":167}],35:[function(require,module,exports){
+},{"_process":7,"fbjs/lib/ExecutionEnvironment":153,"fbjs/lib/createNodesFromMarkup":158,"fbjs/lib/emptyFunction":159,"fbjs/lib/getMarkupWrap":163,"fbjs/lib/invariant":167}],35:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -5247,7 +5251,7 @@ var EventPluginHub = {
 
 module.exports = EventPluginHub;
 }).call(this,require('_process'))
-},{"./EventPluginRegistry":39,"./EventPluginUtils":40,"./ReactErrorUtils":79,"./accumulateInto":125,"./forEachAccumulated":133,"_process":1,"fbjs/lib/invariant":167,"fbjs/lib/warning":178}],39:[function(require,module,exports){
+},{"./EventPluginRegistry":39,"./EventPluginUtils":40,"./ReactErrorUtils":79,"./accumulateInto":125,"./forEachAccumulated":133,"_process":7,"fbjs/lib/invariant":167,"fbjs/lib/warning":178}],39:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -5470,7 +5474,7 @@ var EventPluginRegistry = {
 
 module.exports = EventPluginRegistry;
 }).call(this,require('_process'))
-},{"_process":1,"fbjs/lib/invariant":167}],40:[function(require,module,exports){
+},{"_process":7,"fbjs/lib/invariant":167}],40:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -5675,7 +5679,7 @@ var EventPluginUtils = {
 
 module.exports = EventPluginUtils;
 }).call(this,require('_process'))
-},{"./EventConstants":37,"./ReactErrorUtils":79,"_process":1,"fbjs/lib/invariant":167,"fbjs/lib/warning":178}],41:[function(require,module,exports){
+},{"./EventConstants":37,"./ReactErrorUtils":79,"_process":7,"fbjs/lib/invariant":167,"fbjs/lib/warning":178}],41:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -5813,7 +5817,7 @@ var EventPropagators = {
 
 module.exports = EventPropagators;
 }).call(this,require('_process'))
-},{"./EventConstants":37,"./EventPluginHub":38,"./accumulateInto":125,"./forEachAccumulated":133,"_process":1,"fbjs/lib/warning":178}],42:[function(require,module,exports){
+},{"./EventConstants":37,"./EventPluginHub":38,"./accumulateInto":125,"./forEachAccumulated":133,"_process":7,"fbjs/lib/warning":178}],42:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -6277,7 +6281,7 @@ var LinkedValueUtils = {
 
 module.exports = LinkedValueUtils;
 }).call(this,require('_process'))
-},{"./ReactPropTypeLocations":96,"./ReactPropTypes":97,"_process":1,"fbjs/lib/invariant":167,"fbjs/lib/warning":178}],45:[function(require,module,exports){
+},{"./ReactPropTypeLocations":96,"./ReactPropTypes":97,"_process":7,"fbjs/lib/invariant":167,"fbjs/lib/warning":178}],45:[function(require,module,exports){
 /**
  * Copyright 2014-2015, Facebook, Inc.
  * All rights reserved.
@@ -6447,7 +6451,7 @@ var PooledClass = {
 
 module.exports = PooledClass;
 }).call(this,require('_process'))
-},{"_process":1,"fbjs/lib/invariant":167}],47:[function(require,module,exports){
+},{"_process":7,"fbjs/lib/invariant":167}],47:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -6527,7 +6531,7 @@ var ReactBrowserComponentMixin = {
 
 module.exports = ReactBrowserComponentMixin;
 }).call(this,require('_process'))
-},{"./ReactInstanceMap":85,"./findDOMNode":131,"_process":1,"fbjs/lib/warning":178}],49:[function(require,module,exports){
+},{"./ReactInstanceMap":85,"./findDOMNode":131,"_process":7,"fbjs/lib/warning":178}],49:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -6977,7 +6981,7 @@ var ReactChildReconciler = {
 
 module.exports = ReactChildReconciler;
 }).call(this,require('_process'))
-},{"./ReactReconciler":99,"./instantiateReactComponent":141,"./shouldUpdateReactComponent":149,"./traverseAllChildren":150,"_process":1,"fbjs/lib/warning":178}],51:[function(require,module,exports){
+},{"./ReactReconciler":99,"./instantiateReactComponent":141,"./shouldUpdateReactComponent":149,"./traverseAllChildren":150,"_process":7,"fbjs/lib/warning":178}],51:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -7934,7 +7938,7 @@ var ReactClass = {
 
 module.exports = ReactClass;
 }).call(this,require('_process'))
-},{"./Object.assign":45,"./ReactComponent":53,"./ReactElement":75,"./ReactNoopUpdateQueue":92,"./ReactPropTypeLocationNames":95,"./ReactPropTypeLocations":96,"_process":1,"fbjs/lib/emptyObject":160,"fbjs/lib/invariant":167,"fbjs/lib/keyMirror":170,"fbjs/lib/keyOf":171,"fbjs/lib/warning":178}],53:[function(require,module,exports){
+},{"./Object.assign":45,"./ReactComponent":53,"./ReactElement":75,"./ReactNoopUpdateQueue":92,"./ReactPropTypeLocationNames":95,"./ReactPropTypeLocations":96,"_process":7,"fbjs/lib/emptyObject":160,"fbjs/lib/invariant":167,"fbjs/lib/keyMirror":170,"fbjs/lib/keyOf":171,"fbjs/lib/warning":178}],53:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -8059,7 +8063,7 @@ if (process.env.NODE_ENV !== 'production') {
 
 module.exports = ReactComponent;
 }).call(this,require('_process'))
-},{"./ReactNoopUpdateQueue":92,"./canDefineProperty":127,"_process":1,"fbjs/lib/emptyObject":160,"fbjs/lib/invariant":167,"fbjs/lib/warning":178}],54:[function(require,module,exports){
+},{"./ReactNoopUpdateQueue":92,"./canDefineProperty":127,"_process":7,"fbjs/lib/emptyObject":160,"fbjs/lib/invariant":167,"fbjs/lib/warning":178}],54:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -8155,7 +8159,7 @@ var ReactComponentEnvironment = {
 
 module.exports = ReactComponentEnvironment;
 }).call(this,require('_process'))
-},{"_process":1,"fbjs/lib/invariant":167}],56:[function(require,module,exports){
+},{"_process":7,"fbjs/lib/invariant":167}],56:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -8852,7 +8856,7 @@ var ReactCompositeComponent = {
 
 module.exports = ReactCompositeComponent;
 }).call(this,require('_process'))
-},{"./Object.assign":45,"./ReactComponentEnvironment":55,"./ReactCurrentOwner":57,"./ReactElement":75,"./ReactInstanceMap":85,"./ReactPerf":94,"./ReactPropTypeLocationNames":95,"./ReactPropTypeLocations":96,"./ReactReconciler":99,"./ReactUpdateQueue":105,"./shouldUpdateReactComponent":149,"_process":1,"fbjs/lib/emptyObject":160,"fbjs/lib/invariant":167,"fbjs/lib/warning":178}],57:[function(require,module,exports){
+},{"./Object.assign":45,"./ReactComponentEnvironment":55,"./ReactCurrentOwner":57,"./ReactElement":75,"./ReactInstanceMap":85,"./ReactPerf":94,"./ReactPropTypeLocationNames":95,"./ReactPropTypeLocations":96,"./ReactReconciler":99,"./ReactUpdateQueue":105,"./shouldUpdateReactComponent":149,"_process":7,"fbjs/lib/emptyObject":160,"fbjs/lib/invariant":167,"fbjs/lib/warning":178}],57:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -8978,7 +8982,7 @@ if (process.env.NODE_ENV !== 'production') {
 
 module.exports = React;
 }).call(this,require('_process'))
-},{"./ReactCurrentOwner":57,"./ReactDOMTextComponent":69,"./ReactDefaultInjection":72,"./ReactInstanceHandles":84,"./ReactMount":88,"./ReactPerf":94,"./ReactReconciler":99,"./ReactUpdates":106,"./ReactVersion":107,"./findDOMNode":131,"./renderSubtreeIntoContainer":146,"_process":1,"fbjs/lib/ExecutionEnvironment":153,"fbjs/lib/warning":178}],59:[function(require,module,exports){
+},{"./ReactCurrentOwner":57,"./ReactDOMTextComponent":69,"./ReactDefaultInjection":72,"./ReactInstanceHandles":84,"./ReactMount":88,"./ReactPerf":94,"./ReactReconciler":99,"./ReactUpdates":106,"./ReactVersion":107,"./findDOMNode":131,"./renderSubtreeIntoContainer":146,"_process":7,"fbjs/lib/ExecutionEnvironment":153,"fbjs/lib/warning":178}],59:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -9994,7 +9998,7 @@ assign(ReactDOMComponent.prototype, ReactDOMComponent.Mixin, ReactMultiChild.Mix
 
 module.exports = ReactDOMComponent;
 }).call(this,require('_process'))
-},{"./AutoFocusUtils":24,"./CSSPropertyOperations":27,"./DOMProperty":32,"./DOMPropertyOperations":33,"./EventConstants":37,"./Object.assign":45,"./ReactBrowserEventEmitter":49,"./ReactComponentBrowserEnvironment":54,"./ReactDOMButton":59,"./ReactDOMInput":64,"./ReactDOMOption":65,"./ReactDOMSelect":66,"./ReactDOMTextarea":70,"./ReactMount":88,"./ReactMultiChild":89,"./ReactPerf":94,"./ReactUpdateQueue":105,"./canDefineProperty":127,"./escapeTextContentForBrowser":130,"./isEventSupported":142,"./setInnerHTML":147,"./setTextContent":148,"./validateDOMNesting":151,"_process":1,"fbjs/lib/invariant":167,"fbjs/lib/keyOf":171,"fbjs/lib/shallowEqual":176,"fbjs/lib/warning":178}],61:[function(require,module,exports){
+},{"./AutoFocusUtils":24,"./CSSPropertyOperations":27,"./DOMProperty":32,"./DOMPropertyOperations":33,"./EventConstants":37,"./Object.assign":45,"./ReactBrowserEventEmitter":49,"./ReactComponentBrowserEnvironment":54,"./ReactDOMButton":59,"./ReactDOMInput":64,"./ReactDOMOption":65,"./ReactDOMSelect":66,"./ReactDOMTextarea":70,"./ReactMount":88,"./ReactMultiChild":89,"./ReactPerf":94,"./ReactUpdateQueue":105,"./canDefineProperty":127,"./escapeTextContentForBrowser":130,"./isEventSupported":142,"./setInnerHTML":147,"./setTextContent":148,"./validateDOMNesting":151,"_process":7,"fbjs/lib/invariant":167,"fbjs/lib/keyOf":171,"fbjs/lib/shallowEqual":176,"fbjs/lib/warning":178}],61:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -10174,7 +10178,7 @@ var ReactDOMFactories = mapObject({
 
 module.exports = ReactDOMFactories;
 }).call(this,require('_process'))
-},{"./ReactElement":75,"./ReactElementValidator":76,"_process":1,"fbjs/lib/mapObject":172}],62:[function(require,module,exports){
+},{"./ReactElement":75,"./ReactElementValidator":76,"_process":7,"fbjs/lib/mapObject":172}],62:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -10290,7 +10294,7 @@ ReactPerf.measureMethods(ReactDOMIDOperations, 'ReactDOMIDOperations', {
 
 module.exports = ReactDOMIDOperations;
 }).call(this,require('_process'))
-},{"./DOMChildrenOperations":31,"./DOMPropertyOperations":33,"./ReactMount":88,"./ReactPerf":94,"_process":1,"fbjs/lib/invariant":167}],64:[function(require,module,exports){
+},{"./DOMChildrenOperations":31,"./DOMPropertyOperations":33,"./ReactMount":88,"./ReactPerf":94,"_process":7,"fbjs/lib/invariant":167}],64:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -10446,7 +10450,7 @@ function _handleChange(event) {
 
 module.exports = ReactDOMInput;
 }).call(this,require('_process'))
-},{"./LinkedValueUtils":44,"./Object.assign":45,"./ReactDOMIDOperations":63,"./ReactMount":88,"./ReactUpdates":106,"_process":1,"fbjs/lib/invariant":167}],65:[function(require,module,exports){
+},{"./LinkedValueUtils":44,"./Object.assign":45,"./ReactDOMIDOperations":63,"./ReactMount":88,"./ReactUpdates":106,"_process":7,"fbjs/lib/invariant":167}],65:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -10538,7 +10542,7 @@ var ReactDOMOption = {
 
 module.exports = ReactDOMOption;
 }).call(this,require('_process'))
-},{"./Object.assign":45,"./ReactChildren":51,"./ReactDOMSelect":66,"_process":1,"fbjs/lib/warning":178}],66:[function(require,module,exports){
+},{"./Object.assign":45,"./ReactChildren":51,"./ReactDOMSelect":66,"_process":7,"fbjs/lib/warning":178}],66:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -10729,7 +10733,7 @@ function _handleChange(event) {
 
 module.exports = ReactDOMSelect;
 }).call(this,require('_process'))
-},{"./LinkedValueUtils":44,"./Object.assign":45,"./ReactMount":88,"./ReactUpdates":106,"_process":1,"fbjs/lib/warning":178}],67:[function(require,module,exports){
+},{"./LinkedValueUtils":44,"./Object.assign":45,"./ReactMount":88,"./ReactUpdates":106,"_process":7,"fbjs/lib/warning":178}],67:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -11099,7 +11103,7 @@ assign(ReactDOMTextComponent.prototype, {
 
 module.exports = ReactDOMTextComponent;
 }).call(this,require('_process'))
-},{"./DOMChildrenOperations":31,"./DOMPropertyOperations":33,"./Object.assign":45,"./ReactComponentBrowserEnvironment":54,"./ReactMount":88,"./escapeTextContentForBrowser":130,"./setTextContent":148,"./validateDOMNesting":151,"_process":1}],70:[function(require,module,exports){
+},{"./DOMChildrenOperations":31,"./DOMPropertyOperations":33,"./Object.assign":45,"./ReactComponentBrowserEnvironment":54,"./ReactMount":88,"./escapeTextContentForBrowser":130,"./setTextContent":148,"./validateDOMNesting":151,"_process":7}],70:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -11215,7 +11219,7 @@ function _handleChange(event) {
 
 module.exports = ReactDOMTextarea;
 }).call(this,require('_process'))
-},{"./LinkedValueUtils":44,"./Object.assign":45,"./ReactDOMIDOperations":63,"./ReactUpdates":106,"_process":1,"fbjs/lib/invariant":167,"fbjs/lib/warning":178}],71:[function(require,module,exports){
+},{"./LinkedValueUtils":44,"./Object.assign":45,"./ReactDOMIDOperations":63,"./ReactUpdates":106,"_process":7,"fbjs/lib/invariant":167,"fbjs/lib/warning":178}],71:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -11383,7 +11387,7 @@ module.exports = {
   inject: inject
 };
 }).call(this,require('_process'))
-},{"./BeforeInputEventPlugin":25,"./ChangeEventPlugin":29,"./ClientReactRootIndex":30,"./DefaultEventPluginOrder":35,"./EnterLeaveEventPlugin":36,"./HTMLDOMPropertyConfig":43,"./ReactBrowserComponentMixin":48,"./ReactComponentBrowserEnvironment":54,"./ReactDOMComponent":60,"./ReactDOMTextComponent":69,"./ReactDefaultBatchingStrategy":71,"./ReactDefaultPerf":73,"./ReactEventListener":81,"./ReactInjection":82,"./ReactInstanceHandles":84,"./ReactMount":88,"./ReactReconcileTransaction":98,"./SVGDOMPropertyConfig":108,"./SelectEventPlugin":109,"./ServerReactRootIndex":110,"./SimpleEventPlugin":111,"_process":1,"fbjs/lib/ExecutionEnvironment":153}],73:[function(require,module,exports){
+},{"./BeforeInputEventPlugin":25,"./ChangeEventPlugin":29,"./ClientReactRootIndex":30,"./DefaultEventPluginOrder":35,"./EnterLeaveEventPlugin":36,"./HTMLDOMPropertyConfig":43,"./ReactBrowserComponentMixin":48,"./ReactComponentBrowserEnvironment":54,"./ReactDOMComponent":60,"./ReactDOMTextComponent":69,"./ReactDefaultBatchingStrategy":71,"./ReactDefaultPerf":73,"./ReactEventListener":81,"./ReactInjection":82,"./ReactInstanceHandles":84,"./ReactMount":88,"./ReactReconcileTransaction":98,"./SVGDOMPropertyConfig":108,"./SelectEventPlugin":109,"./ServerReactRootIndex":110,"./SimpleEventPlugin":111,"_process":7,"fbjs/lib/ExecutionEnvironment":153}],73:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -12073,7 +12077,7 @@ ReactElement.isValidElement = function (object) {
 
 module.exports = ReactElement;
 }).call(this,require('_process'))
-},{"./Object.assign":45,"./ReactCurrentOwner":57,"./canDefineProperty":127,"_process":1}],76:[function(require,module,exports){
+},{"./Object.assign":45,"./ReactCurrentOwner":57,"./canDefineProperty":127,"_process":7}],76:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2014-2015, Facebook, Inc.
@@ -12357,7 +12361,7 @@ var ReactElementValidator = {
 
 module.exports = ReactElementValidator;
 }).call(this,require('_process'))
-},{"./ReactCurrentOwner":57,"./ReactElement":75,"./ReactPropTypeLocationNames":95,"./ReactPropTypeLocations":96,"./canDefineProperty":127,"./getIteratorFn":138,"_process":1,"fbjs/lib/invariant":167,"fbjs/lib/warning":178}],77:[function(require,module,exports){
+},{"./ReactCurrentOwner":57,"./ReactElement":75,"./ReactPropTypeLocationNames":95,"./ReactPropTypeLocations":96,"./canDefineProperty":127,"./getIteratorFn":138,"_process":7,"fbjs/lib/invariant":167,"fbjs/lib/warning":178}],77:[function(require,module,exports){
 /**
  * Copyright 2014-2015, Facebook, Inc.
  * All rights reserved.
@@ -12542,7 +12546,7 @@ if (process.env.NODE_ENV !== 'production') {
 
 module.exports = ReactErrorUtils;
 }).call(this,require('_process'))
-},{"_process":1}],80:[function(require,module,exports){
+},{"_process":7}],80:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -13262,7 +13266,7 @@ var ReactInstanceHandles = {
 
 module.exports = ReactInstanceHandles;
 }).call(this,require('_process'))
-},{"./ReactRootIndex":101,"_process":1,"fbjs/lib/invariant":167}],85:[function(require,module,exports){
+},{"./ReactRootIndex":101,"_process":7,"fbjs/lib/invariant":167}],85:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -13387,7 +13391,7 @@ var React = {
 
 module.exports = React;
 }).call(this,require('_process'))
-},{"./Object.assign":45,"./ReactChildren":51,"./ReactClass":52,"./ReactComponent":53,"./ReactDOMFactories":61,"./ReactElement":75,"./ReactElementValidator":76,"./ReactPropTypes":97,"./ReactVersion":107,"./onlyChild":144,"_process":1}],87:[function(require,module,exports){
+},{"./Object.assign":45,"./ReactChildren":51,"./ReactClass":52,"./ReactComponent":53,"./ReactDOMFactories":61,"./ReactElement":75,"./ReactElementValidator":76,"./ReactPropTypes":97,"./ReactVersion":107,"./onlyChild":144,"_process":7}],87:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -14286,7 +14290,7 @@ ReactPerf.measureMethods(ReactMount, 'ReactMount', {
 
 module.exports = ReactMount;
 }).call(this,require('_process'))
-},{"./DOMProperty":32,"./Object.assign":45,"./ReactBrowserEventEmitter":49,"./ReactCurrentOwner":57,"./ReactDOMFeatureFlags":62,"./ReactElement":75,"./ReactEmptyComponentRegistry":78,"./ReactInstanceHandles":84,"./ReactInstanceMap":85,"./ReactMarkupChecksum":87,"./ReactPerf":94,"./ReactReconciler":99,"./ReactUpdateQueue":105,"./ReactUpdates":106,"./instantiateReactComponent":141,"./setInnerHTML":147,"./shouldUpdateReactComponent":149,"./validateDOMNesting":151,"_process":1,"fbjs/lib/containsNode":156,"fbjs/lib/emptyObject":160,"fbjs/lib/invariant":167,"fbjs/lib/warning":178}],89:[function(require,module,exports){
+},{"./DOMProperty":32,"./Object.assign":45,"./ReactBrowserEventEmitter":49,"./ReactCurrentOwner":57,"./ReactDOMFeatureFlags":62,"./ReactElement":75,"./ReactEmptyComponentRegistry":78,"./ReactInstanceHandles":84,"./ReactInstanceMap":85,"./ReactMarkupChecksum":87,"./ReactPerf":94,"./ReactReconciler":99,"./ReactUpdateQueue":105,"./ReactUpdates":106,"./instantiateReactComponent":141,"./setInnerHTML":147,"./shouldUpdateReactComponent":149,"./validateDOMNesting":151,"_process":7,"fbjs/lib/containsNode":156,"fbjs/lib/emptyObject":160,"fbjs/lib/invariant":167,"fbjs/lib/warning":178}],89:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -14785,7 +14789,7 @@ var ReactMultiChild = {
 
 module.exports = ReactMultiChild;
 }).call(this,require('_process'))
-},{"./ReactChildReconciler":50,"./ReactComponentEnvironment":55,"./ReactCurrentOwner":57,"./ReactMultiChildUpdateTypes":90,"./ReactReconciler":99,"./flattenChildren":132,"_process":1}],90:[function(require,module,exports){
+},{"./ReactChildReconciler":50,"./ReactComponentEnvironment":55,"./ReactCurrentOwner":57,"./ReactMultiChildUpdateTypes":90,"./ReactReconciler":99,"./flattenChildren":132,"_process":7}],90:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -14915,7 +14919,7 @@ var ReactNativeComponent = {
 
 module.exports = ReactNativeComponent;
 }).call(this,require('_process'))
-},{"./Object.assign":45,"_process":1,"fbjs/lib/invariant":167}],92:[function(require,module,exports){
+},{"./Object.assign":45,"_process":7,"fbjs/lib/invariant":167}],92:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2015, Facebook, Inc.
@@ -15036,7 +15040,7 @@ var ReactNoopUpdateQueue = {
 
 module.exports = ReactNoopUpdateQueue;
 }).call(this,require('_process'))
-},{"_process":1,"fbjs/lib/warning":178}],93:[function(require,module,exports){
+},{"_process":7,"fbjs/lib/warning":178}],93:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -15130,7 +15134,7 @@ var ReactOwner = {
 
 module.exports = ReactOwner;
 }).call(this,require('_process'))
-},{"_process":1,"fbjs/lib/invariant":167}],94:[function(require,module,exports){
+},{"_process":7,"fbjs/lib/invariant":167}],94:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -15229,7 +15233,7 @@ function _noMeasure(objName, fnName, func) {
 
 module.exports = ReactPerf;
 }).call(this,require('_process'))
-},{"_process":1}],95:[function(require,module,exports){
+},{"_process":7}],95:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -15256,7 +15260,7 @@ if (process.env.NODE_ENV !== 'production') {
 
 module.exports = ReactPropTypeLocationNames;
 }).call(this,require('_process'))
-},{"_process":1}],96:[function(require,module,exports){
+},{"_process":7}],96:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -16115,7 +16119,7 @@ module.exports = {
   renderToStaticMarkup: renderToStaticMarkup
 };
 }).call(this,require('_process'))
-},{"./ReactDefaultBatchingStrategy":71,"./ReactElement":75,"./ReactInstanceHandles":84,"./ReactMarkupChecksum":87,"./ReactServerBatchingStrategy":102,"./ReactServerRenderingTransaction":104,"./ReactUpdates":106,"./instantiateReactComponent":141,"_process":1,"fbjs/lib/emptyObject":160,"fbjs/lib/invariant":167}],104:[function(require,module,exports){
+},{"./ReactDefaultBatchingStrategy":71,"./ReactElement":75,"./ReactInstanceHandles":84,"./ReactMarkupChecksum":87,"./ReactServerBatchingStrategy":102,"./ReactServerRenderingTransaction":104,"./ReactUpdates":106,"./instantiateReactComponent":141,"_process":7,"fbjs/lib/emptyObject":160,"fbjs/lib/invariant":167}],104:[function(require,module,exports){
 /**
  * Copyright 2014-2015, Facebook, Inc.
  * All rights reserved.
@@ -16463,7 +16467,7 @@ var ReactUpdateQueue = {
 
 module.exports = ReactUpdateQueue;
 }).call(this,require('_process'))
-},{"./Object.assign":45,"./ReactCurrentOwner":57,"./ReactElement":75,"./ReactInstanceMap":85,"./ReactUpdates":106,"_process":1,"fbjs/lib/invariant":167,"fbjs/lib/warning":178}],106:[function(require,module,exports){
+},{"./Object.assign":45,"./ReactCurrentOwner":57,"./ReactElement":75,"./ReactInstanceMap":85,"./ReactUpdates":106,"_process":7,"fbjs/lib/invariant":167,"fbjs/lib/warning":178}],106:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -16689,7 +16693,7 @@ var ReactUpdates = {
 
 module.exports = ReactUpdates;
 }).call(this,require('_process'))
-},{"./CallbackQueue":28,"./Object.assign":45,"./PooledClass":46,"./ReactPerf":94,"./ReactReconciler":99,"./Transaction":123,"_process":1,"fbjs/lib/invariant":167}],107:[function(require,module,exports){
+},{"./CallbackQueue":28,"./Object.assign":45,"./PooledClass":46,"./ReactPerf":94,"./ReactReconciler":99,"./Transaction":123,"_process":7,"fbjs/lib/invariant":167}],107:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -17654,7 +17658,7 @@ var SimpleEventPlugin = {
 
 module.exports = SimpleEventPlugin;
 }).call(this,require('_process'))
-},{"./EventConstants":37,"./EventPropagators":41,"./ReactMount":88,"./SyntheticClipboardEvent":112,"./SyntheticDragEvent":114,"./SyntheticEvent":115,"./SyntheticFocusEvent":116,"./SyntheticKeyboardEvent":118,"./SyntheticMouseEvent":119,"./SyntheticTouchEvent":120,"./SyntheticUIEvent":121,"./SyntheticWheelEvent":122,"./getEventCharCode":134,"_process":1,"fbjs/lib/EventListener":152,"fbjs/lib/emptyFunction":159,"fbjs/lib/invariant":167,"fbjs/lib/keyOf":171}],112:[function(require,module,exports){
+},{"./EventConstants":37,"./EventPropagators":41,"./ReactMount":88,"./SyntheticClipboardEvent":112,"./SyntheticDragEvent":114,"./SyntheticEvent":115,"./SyntheticFocusEvent":116,"./SyntheticKeyboardEvent":118,"./SyntheticMouseEvent":119,"./SyntheticTouchEvent":120,"./SyntheticUIEvent":121,"./SyntheticWheelEvent":122,"./getEventCharCode":134,"_process":7,"fbjs/lib/EventListener":152,"fbjs/lib/emptyFunction":159,"fbjs/lib/invariant":167,"fbjs/lib/keyOf":171}],112:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -17953,7 +17957,7 @@ PooledClass.addPoolingTo(SyntheticEvent, PooledClass.fourArgumentPooler);
 
 module.exports = SyntheticEvent;
 }).call(this,require('_process'))
-},{"./Object.assign":45,"./PooledClass":46,"_process":1,"fbjs/lib/emptyFunction":159,"fbjs/lib/warning":178}],116:[function(require,module,exports){
+},{"./Object.assign":45,"./PooledClass":46,"_process":7,"fbjs/lib/emptyFunction":159,"fbjs/lib/warning":178}],116:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -18588,7 +18592,7 @@ var Transaction = {
 
 module.exports = Transaction;
 }).call(this,require('_process'))
-},{"_process":1,"fbjs/lib/invariant":167}],124:[function(require,module,exports){
+},{"_process":7,"fbjs/lib/invariant":167}],124:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -18678,7 +18682,7 @@ function accumulateInto(current, next) {
 
 module.exports = accumulateInto;
 }).call(this,require('_process'))
-},{"_process":1,"fbjs/lib/invariant":167}],126:[function(require,module,exports){
+},{"_process":7,"fbjs/lib/invariant":167}],126:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -18748,7 +18752,7 @@ if (process.env.NODE_ENV !== 'production') {
 
 module.exports = canDefineProperty;
 }).call(this,require('_process'))
-},{"_process":1}],128:[function(require,module,exports){
+},{"_process":7}],128:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -18855,7 +18859,7 @@ function deprecated(fnName, newModule, newPackage, ctx, fn) {
 
 module.exports = deprecated;
 }).call(this,require('_process'))
-},{"./Object.assign":45,"_process":1,"fbjs/lib/warning":178}],130:[function(require,module,exports){
+},{"./Object.assign":45,"_process":7,"fbjs/lib/warning":178}],130:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -18946,7 +18950,7 @@ function findDOMNode(componentOrElement) {
 
 module.exports = findDOMNode;
 }).call(this,require('_process'))
-},{"./ReactCurrentOwner":57,"./ReactInstanceMap":85,"./ReactMount":88,"_process":1,"fbjs/lib/invariant":167,"fbjs/lib/warning":178}],132:[function(require,module,exports){
+},{"./ReactCurrentOwner":57,"./ReactInstanceMap":85,"./ReactMount":88,"_process":7,"fbjs/lib/invariant":167,"fbjs/lib/warning":178}],132:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -18997,7 +19001,7 @@ function flattenChildren(children) {
 
 module.exports = flattenChildren;
 }).call(this,require('_process'))
-},{"./traverseAllChildren":150,"_process":1,"fbjs/lib/warning":178}],133:[function(require,module,exports){
+},{"./traverseAllChildren":150,"_process":7,"fbjs/lib/warning":178}],133:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -19521,7 +19525,7 @@ function instantiateReactComponent(node) {
 
 module.exports = instantiateReactComponent;
 }).call(this,require('_process'))
-},{"./Object.assign":45,"./ReactCompositeComponent":56,"./ReactEmptyComponent":77,"./ReactNativeComponent":91,"_process":1,"fbjs/lib/invariant":167,"fbjs/lib/warning":178}],142:[function(require,module,exports){
+},{"./Object.assign":45,"./ReactCompositeComponent":56,"./ReactEmptyComponent":77,"./ReactNativeComponent":91,"_process":7,"fbjs/lib/invariant":167,"fbjs/lib/warning":178}],142:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -19659,7 +19663,7 @@ function onlyChild(children) {
 
 module.exports = onlyChild;
 }).call(this,require('_process'))
-},{"./ReactElement":75,"_process":1,"fbjs/lib/invariant":167}],145:[function(require,module,exports){
+},{"./ReactElement":75,"_process":7,"fbjs/lib/invariant":167}],145:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -20071,7 +20075,7 @@ function traverseAllChildren(children, callback, traverseContext) {
 
 module.exports = traverseAllChildren;
 }).call(this,require('_process'))
-},{"./ReactCurrentOwner":57,"./ReactElement":75,"./ReactInstanceHandles":84,"./getIteratorFn":138,"_process":1,"fbjs/lib/invariant":167,"fbjs/lib/warning":178}],151:[function(require,module,exports){
+},{"./ReactCurrentOwner":57,"./ReactElement":75,"./ReactInstanceHandles":84,"./getIteratorFn":138,"_process":7,"fbjs/lib/invariant":167,"fbjs/lib/warning":178}],151:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2015, Facebook, Inc.
@@ -20437,7 +20441,7 @@ if (process.env.NODE_ENV !== 'production') {
 
 module.exports = validateDOMNesting;
 }).call(this,require('_process'))
-},{"./Object.assign":45,"_process":1,"fbjs/lib/emptyFunction":159,"fbjs/lib/warning":178}],152:[function(require,module,exports){
+},{"./Object.assign":45,"_process":7,"fbjs/lib/emptyFunction":159,"fbjs/lib/warning":178}],152:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -20524,7 +20528,7 @@ var EventListener = {
 
 module.exports = EventListener;
 }).call(this,require('_process'))
-},{"./emptyFunction":159,"_process":1}],153:[function(require,module,exports){
+},{"./emptyFunction":159,"_process":7}],153:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -20864,7 +20868,7 @@ function createNodesFromMarkup(markup, handleScript) {
 
 module.exports = createNodesFromMarkup;
 }).call(this,require('_process'))
-},{"./ExecutionEnvironment":153,"./createArrayFromMixed":157,"./getMarkupWrap":163,"./invariant":167,"_process":1}],159:[function(require,module,exports){
+},{"./ExecutionEnvironment":153,"./createArrayFromMixed":157,"./getMarkupWrap":163,"./invariant":167,"_process":7}],159:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -20926,7 +20930,7 @@ if (process.env.NODE_ENV !== 'production') {
 
 module.exports = emptyObject;
 }).call(this,require('_process'))
-},{"_process":1}],161:[function(require,module,exports){
+},{"_process":7}],161:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -21087,7 +21091,7 @@ function getMarkupWrap(nodeName) {
 
 module.exports = getMarkupWrap;
 }).call(this,require('_process'))
-},{"./ExecutionEnvironment":153,"./invariant":167,"_process":1}],164:[function(require,module,exports){
+},{"./ExecutionEnvironment":153,"./invariant":167,"_process":7}],164:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -21253,7 +21257,7 @@ function invariant(condition, format, a, b, c, d, e, f) {
 
 module.exports = invariant;
 }).call(this,require('_process'))
-},{"_process":1}],168:[function(require,module,exports){
+},{"_process":7}],168:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -21354,7 +21358,7 @@ var keyMirror = function (obj) {
 
 module.exports = keyMirror;
 }).call(this,require('_process'))
-},{"./invariant":167,"_process":1}],171:[function(require,module,exports){
+},{"./invariant":167,"_process":7}],171:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -21644,7 +21648,7 @@ function toArray(obj) {
 
 module.exports = toArray;
 }).call(this,require('_process'))
-},{"./invariant":167,"_process":1}],178:[function(require,module,exports){
+},{"./invariant":167,"_process":7}],178:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2014-2015, Facebook, Inc.
@@ -21704,9 +21708,9 @@ if (process.env.NODE_ENV !== 'production') {
 
 module.exports = warning;
 }).call(this,require('_process'))
-},{"./emptyFunction":159,"_process":1}],179:[function(require,module,exports){
+},{"./emptyFunction":159,"_process":7}],179:[function(require,module,exports){
 'use strict';
 
 module.exports = require('./lib/React');
 
-},{"./lib/React":47}]},{},[2]);
+},{"./lib/React":47}]},{},[1]);
